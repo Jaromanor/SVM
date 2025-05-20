@@ -1,0 +1,242 @@
+---
+title: "SVM"
+author: "JARO"
+date: "2025-05-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(CDR)
+library(caret)
+library(ggplot2)
+library(e1071)
+library(dplyr)
+```
+
+
+# 1. CONTEXTO
+
+Se realzará un ejercicio utilizando caret. Se usará una data que pretende vender tensiómetros digitales, obteniéndose las predicciones sobre si el cliente comprará o no un tensiómetro en función de una serie de variables incluidas en el conjunto de datos dp_ENTRdel paquete CDR.
+
+# 2. CARGA DE DATOS
+
+```{r}
+data(dp_entr_NUM)
+str(dp_entr_NUM)
+```
+
+# 3. PARTICIÓN
+
+```{r}
+set.seed(123)
+trainIndex<-createDataPartition(
+  dp_entr_NUM$CLS_PRO_pro13,
+  p=0.8,
+  list = FALSE)
+trainData<-dp_entr_NUM[trainIndex,]
+testData<-dp_entr_NUM[-trainIndex,]
+```
+
+
+# 5. ENTRENAMIENTO CON CV y PREPROCESAMIENTO
+
+Se van a predecir probabilidades, entonces es necesario poner classProbs como TRUE. Las métricas para cv son roc, sens y espec. Entonces se debe indicar summaryFunction = twoClassSummary y tener en cuenta cuando se vaya entrenar el modelo escoger metrica: ROC
+
+```{r}
+ctrl<-trainControl(
+  method = "cv",
+  number = 10,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary #calcula roc, sens y especi
+)
+```
+
+```{r}
+set.seed(123)
+modelo_svm<-train(
+  CLS_PRO_pro13~.,
+  data=trainData,
+  method="svmRadial",
+  metric = "ROC",                 # Métrica para optimizar
+  preProcess = c("center", "scale"),
+  tuneLength = 5,                 # Prueba 5 combinaciones de C y sigma
+  trControl = ctrl
+)
+
+print(modelo_svm)
+plot(modelo_svm)
+```
+
+
+
+
+qué combinaciones se probaron con:
+```{r}
+modelo_svm$results
+```
+
+Y el mejor modelo con:
+```{r}
+modelo_svm$bestTune
+```
+
+El modelo utilizado es una Máquina de Vectores de Soporte (SVM) con un kernel radial (RBF)
+
+448 observaciones fueron usadas en el entrenamiento.
+
+El modelo considera 19 variables predictoras.
+
+Es una tarea de clasificación binaria: la variable de salida tiene 2 clases:
+
+'S': Positivo
+
+'N': Negativo
+
+Todas las variables fueron centradas (media 0) y escaladas (desviación estándar 1).
+
+Se usó validación cruzada de 10 particiones (10-fold CV) para estimar el rendimiento del modelo.
+
+Cada fold usó entre 402–404 muestras para entrenamiento, y el resto para validación interna.
+
+Se evaluaron 5 valores del hiperparámetro C (el parámetro de penalización por error). Para cada valor se reportan:
+
+ROC (Área bajo la curva ROC): mide la capacidad de discriminación del modelo (cuanto más alto, mejor).
+
+Sens (Sensibilidad): tasa de verdaderos positivos (recall de la clase 'S').
+
+Spec (Especificidad): tasa de verdaderos negativos (recall de la clase 'N').
+
+El mejor valor de ROC = 0.9439 se logró con C = 0.25.
+
+sigma es el parámetro del kernel radial (controla la forma de la función de decisión). En esta búsqueda se mantuvo fijo.
+
+La selección del mejor modelo se basó en la máxima AUC (ROC).
+
+El modelo final usará:
+
+C = 0.25: penalización ligera, más flexible
+
+sigma = 0.034: cierta capacidad para captar no linealidad sin sobreajuste
+
+
+
+El modelo SVM con kernel RBF mostró excelente rendimiento predictivo, con AUC cercano a 0.94
+
+
+C: Este hiperparámetro controla el equilibrio entre el margen del modelo y los errores de clasificación en el entrenamiento.
+
+Conceptualmente:
+Valor bajo (C = 0.25):
+
+Permite más errores en el entrenamiento.
+
+Tiende a márgenes más amplios, lo que reduce el sobreajuste.
+
+El modelo es más simple y generaliza mejor, pero puede cometer más errores con los datos de entrenamiento.
+
+Valor alto (ej. C = 10):
+
+Penaliza mucho los errores → márgenes estrechos.
+
+Tiende a sobreajustar si hay ruido en los datos.
+
+Mejor en entrenamiento, pero puede fallar en test.
+
+C = 0.25 sugiere que el modelo prioriza la simplicidad y generalización, permitiendo algunos errores en el entrenamiento para evitar sobreajuste.
+
+
+En el kernel radial, sigma controla la influencia de cada punto de entrenamiento. Está relacionado con gamma = 1 / (2 * sigma²).
+
+Conceptualmente:
+Valor pequeño de sigma (ej. 0.01):
+
+La influencia de cada punto es muy localizada.
+
+La función de decisión se vuelve muy curva y compleja → riesgo de sobreajuste.
+
+Valor grande de sigma (ej. 0.5 o 1):
+
+La influencia se distribuye más ampliamente.
+
+La función de decisión es más suave, pero puede perder capacidad para distinguir clases complejas.
+
+🧾 En tu resultado:
+sigma = 0.034 está en un rango medio-bajo, lo que permite al modelo capturar ciertas no linealidades pero sin volverse tan sensible a puntos individuales (lo cual causaría sobreajuste).
+
+
+
+Respecto al gráfico:
+¿Qué observamos?
+El mejor valor de ROC (~0.944) se alcanza cuando C = 0.25 (más a la izquierda).
+
+A medida que C aumenta (hacia la derecha), el ROC disminuye ligeramente, alcanzando un mínimo alrededor de C = 2, y luego sube un poco en C = 4.
+
+La forma de la curva sugiere una ligera U invertida, donde los extremos (especialmente C bajo) funcionan mejor que el medio.
+
+El gráfico indica que el modelo SVM logra su mejor capacidad de discriminación (AUC) con un valor de penalización bajo (C = 0.25). Esto sugiere que un margen más amplio, con cierta tolerancia a errores de clasificación en el entrenamiento, produce mejores resultados en validación cruzada, es decir, generaliza mejor a nuevos datos.
+
+
+# 8. EVALUACIÓN
+
+```{r}
+pred<-predict(modelo_svm,newdata=testData)
+confusionMatrix(pred,testData$CLS_PRO_pro13)
+
+# AUC
+pred_prob <- predict(modelo_svm, newdata = testData, type = "prob")
+library(pROC)
+roc <- roc(response = testData$CLS_PRO_pro13,
+           predictor = pred_prob$S,
+           levels = rev(levels(testData$CLS_PRO_pro13)))
+auc_value<-auc(roc)
+```
+
+
+
+```{r}
+ggplot() +
+  geom_line(aes(x = 1 - roc$specificities, y = roc$sensitivities), 
+            color = "darkorange", linewidth = 1) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
+  labs(x = "1 - Especificidad (Falsos Positivos)", 
+       y = "Sensibilidad (Verdaderos Positivos)",
+       title = paste("Curva ROC - AUC =", round(auc_value, 4))) +
+  theme_minimal()
+```
+
+
+
+
+
+
+# 9. EXPORTACIÓN MODELO PARA PRODUCCIÓN
+
+
+```{r}
+saveRDS(modelo_svm, "modelo_svm_compra.rds")
+
+```
+
+
+```{r}
+modelo_cargado <- readRDS("modelo_svm_compra.rds")
+predict(modelo_cargado, newdata = nuevos_datos)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
