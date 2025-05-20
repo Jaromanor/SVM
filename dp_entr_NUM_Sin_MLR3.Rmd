@@ -69,7 +69,7 @@ modelo_svm<-train(
 )
 
 print(modelo_svm)
-plot(modelo_svm)
+ggplot(modelo_svm)
 ```
 
 
@@ -211,7 +211,42 @@ ggplot() +
 
 
 
+# 8,1 Importancua variables
 
+estás usando:
+
+Un modelo de caret::train(), que no devuelve directamente las probabilidades como un vector plano.
+
+Y estás trabajando con AUC (roc_auc_vec), que necesita probabilidades, no clases predichas.
+
+Entonces vip() necesita una función que:
+
+Reciba un modelo (object)
+
+Reciba un nuevo conjunto de datos (newdata)
+
+Devuelva solo un vector numérico con la probabilidad de la clase positiva
+
+
+
+```{r}
+prob_si <- function(object, newdata) {
+  predict(object, newdata = newdata, type = "prob")[, "S"]
+}
+```
+
+```{r}
+library("vip")
+vip(modelo_svm, 
+    train = trainData,
+    target = "CLS_PRO_pro13",
+    metric = yardstick::roc_auc_vec,      # Aquí va la función de yardstick
+    reference_class = "S",
+    pred_wrapper = prob_si,
+    method = "permute",
+    smaller_is_better = FALSE,            # Porque AUC mayor es mejor
+    aesthetics = list(color = "steelblue2", fill = "steelblue2"))
+```
 
 
 # 9. EXPORTACIÓN MODELO PARA PRODUCCIÓN
